@@ -84,7 +84,7 @@ The below AMPscript code should be added to the top of your page and is used to 
 
       /* Set the variables used in this page */
 
-      var @email, @jobid, @submitted, @unsubscribe, @preference, @mod_date
+      var @email, @jobid, @submitted, @unsubscribe, @preference, @mod_date, @url
 
       set @email = emailaddr
       set @jobid = jobid
