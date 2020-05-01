@@ -16,11 +16,12 @@ This setup is designed to allow users to both define the types of emails they'd 
 
 ## Assumptions
 
-This process assumes: 
+This setup assumes: 
 
 - Your business rules allow for users to be opted-in to all preferences by default.
 - You are not allowing users to update their email address in the preference center. 
 - Your business rules allow for users to re-activate themselves within the preference center after the unsubscribe themselves.
+- You are only allowing users to access the page via a link in an email.
 
 ## Instructions
 
@@ -240,4 +241,11 @@ For the form on the page, you can style it as desired, but within the `<form>` t
 1. This is a simple step. Setup an automation to run hourly. Within the automation have a SQL query that updates your customer master with the values from the master preference center data extension.
 
 
-### Final step: watch the preferences roll in.
+### Setting up the Preference Center and Unsubscribe Link in your emails
+
+1. When setting up your Preference Center and Unsubscribe Link, user the CloudPagesURL function to pass over the user's email address and the jobid securely. Example code:
+
+  ```
+  <a href="%%=CloudPagesURL(123)=%%">Update Preferences</a>
+
+  ```
