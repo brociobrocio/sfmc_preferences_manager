@@ -1,0 +1,215 @@
+%%[
+
+   /* Set the variables used in this page */
+
+   var @email, @jobid, @submitted, @unsubscribe, @preference, @mod_date, @url
+
+   set @email = emailaddr
+   set @jobid = jobid
+   set @submitted = requestparameter("submitted")
+   set @unsubscribe = requestparameter("unsubscribe")
+   set @preference = requestparameter("preference")
+   set @mod_date = Now()
+
+   /* If the @email variable is empty but the @submitted or @unsubscribe value are populated with the correct values, populate the @email variable with the email parameter. */
+
+   if empty(@email) and (@submitted == "Yes" or @unsubscribe == "Yes") then
+     set @email = requestparameter("email")
+   else endif
+
+   /* If there is no valid email address provided, then redirect the user to the error page */
+
+   if isemailaddress(@email) == "false" then
+     set @url = "errorpagelinkhere.com"
+     redirect(@url)
+   else endif
+
+
+   /* If the user submitted their preferences, then upsert the record on the master preference center data extension and update their status to active */
+
+   if @submitted == "Yes" then
+
+     UpsertDE("Master_PreferenceCenter_CustomerPreferences",1,"Email_Address",@email,"Mailable","Y","Preferences",@preference,"Last_Modified_Date",@mod_date)
+
+    SET @sub = CreateObject("Subscriber")
+     SetObjectProperty(@sub,"EmailAddress", @email)
+     SetObjectProperty(@sub,"SubscriberKey", @email)
+
+     SetObjectProperty(@sub,"Status","Active")
+     Set @options = CreateObject("UpdateOptions")
+     Set @save = CreateObject("SaveOption")
+     SetObjectProperty(@save,"SaveAction","UpdateAdd")
+     SetObjectProperty(@save,"PropertyName","*")
+     AddObjectArrayItem(@options,"SaveOptions", @save)
+     /* Here is where we actually update the Subscriber object */
+     Set @update_sub = InvokeUpdate(@sub, @update_sub_status, @update_sub_errorcode, @options)
+
+     /* Set the confirmation message */
+
+     set @message = "Preferences have been updated<br><br>"
+
+
+   /* Else, if the user unsubscribed, upsert their record accordingly (Clear the Preferences field and flag them as Mailable = "N") and log the unsubscribe */
+
+     elseif @unsubscribe == "Yes" then
+
+     UpsertDE("Master_PreferenceCenter_CustomerPreferences",@email,"Mailable","Y","Preferences",@preference,"Preferences","","Last_Modified_Date",@mod_date)
+
+     /* set the reason for the unsubscribe */
+     set @reason = "Custom Unsubscribe"
+
+     /* initiate the LogUnsubEvent request */
+     set @lue = CreateObject("ExecuteRequest")
+     SetObjectProperty(@lue, "Name", "LogUnsubEvent")
+
+     /* configure the properties of the API object */
+     set @lue_prop = CreateObject("APIProperty")
+     SetObjectProperty(@lue_prop, "Name", "SubscriberKey")
+     SetObjectProperty(@lue_prop, "Value", @email)
+     AddObjectArrayItem(@lue, "Parameters", @lue_prop)
+
+     set @lue_prop = CreateObject("APIProperty")
+     SetObjectProperty(@lue_prop, "Name", "EmailAddress")
+     SetObjectProperty(@lue_prop, "Value", @email)
+     AddObjectArrayItem(@lue, "Parameters", @lue_prop)
+
+     set @lue_prop = CreateObject("APIProperty")
+     SetObjectProperty(@lue_prop, "Name", "JobID")
+     SetObjectProperty(@lue_prop, "Value", @jobid)
+     AddObjectArrayItem(@lue, "Parameters", @lue_prop)
+
+     set @lue_prop = CreateObject("APIProperty")
+     SetObjectProperty(@lue_prop, "Name", "Reason")
+     SetObjectProperty(@lue_prop, "Value", @reason)
+     AddObjectArrayItem(@lue, "Parameters", @lue_prop)
+
+     /* this is where the unsubscribe is performed */
+     set @lue_statusCode = InvokeExecute(@lue, @overallStatus, @requestId)
+
+     /* check status/errors */
+     set @Response = Row(@lue_statusCode, 1)
+     set @UStatus = Field(@Response, "StatusMessage")
+     set @Error = Field(@Response, "ErrorCode")
+
+     /* Set the confirmation message */
+
+    set @message = "You have been unsubscribed.<br>To resubscribe, click the submit button below.<br><br>"
+
+   else endif
+
+
+   ]%%
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+    <title>title</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js">
+
+ </script>
+   <style>
+
+    body {background-image: url('https://images.unsplash.com/photo-1490093158370-1a6be674437b?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=3016&q=80');background-size: cover;}
+    input {width: 100%; height:30px;border: 1px solid #b1b1b1; text-indent: 5px;}
+    input[type=checkbox] {width: 20px;height:20px;vertical-align: middle;position: relative;bottom: 1px;}
+    input[type=radio] {width: 10px;height:10px;}
+    select {width:100%; height:40px !important;border: 1px solid #b1b1b1; background-color: #fff;margin-bottom: 10px;}
+    option:first-child {color: #eaeaea!important}
+     input[type=submit]:hover {cursor:pointer}
+     button:hover {cursor: pointer}
+    #page-container{display: flex; justify-content: center; align-items: center ;height: 99vh;font-family: Gotham, "Helvetica Neue", Helvetica, Arial, "sans-serif";}
+
+    #form-container {height: auto;width: 99%;max-width: 500px;margin:0px auto;background-color:#f1f1f1;box-shadow: 0px 5px 15px rgba(0,0,0,0.3); border-radius: 10px}
+    #page-form-top {max-width:500px; height: 50px;background-color:#06425C; padding: 10px 0px;color: #f2f2f2;margin:0px auto;}
+ #page-form-top-inner{width: 95%;width: 400px; line-height:2.5;font-size: 20px;font-weight:bold;margin:0px auto !important;}
+    #page-form-header {width: 95%;max-width: 400px; margin:0px auto;font-size: 20px;font-weight:bolder}
+    #page-form, #unsub-form {width:95%;max-width: 400px; margin:20px auto;font-size: 12px}
+    #submit {background-color:#ea5534;color:#f2f2f2;font-weight:bolder;height:40px;font-size:20px; margin-top: 15px}
+    #submit:hover {;color:#f2f2f2;box-shadow: 0px 0px 5px rgba(0,0,0,0.2)}
+
+    @media only screen and (max-width: 400px) {
+     body{margin:0px auto; padding: 0px; height:100vh;overflow: hidden;}
+     #page-container {height: auto;}
+     #page-form-header {margin-bottom: 10px !important;}
+     #form-container{height:100%;width:90%;margin-top: 10px;}
+  }
+}
+   @media only screen and (max-width:480px){
+/* MOBILE GLOBAL STYLES - DO NOT CHANGE */
+body, .tb_properties{font-family: Arial !important; font-size: 16px !important; color: #808080 !important; line-height: 1 !important; padding: 0px !important; }.buttonstyles{font-family: Arial !important; font-size: 16px !important; color: #FFFFFF !important; padding: 0px !important; }h1{font-family: Arial !important; font-size: 22px !important; color: #202020 !important; line-height: 1 !important; }h2{font-family: Arial !important; font-size: 20px !important; color: #202020 !important; line-height: 1 !important; }h3{font-family: Arial !important; font-size: 18px !important; color: #202020 !important; line-height: 1 !important; }a:not(.buttonstyles){line-height: 1 !important; }.mobile-hidden{display: none !important; }.responsive-td {width: 100% !important; display: block !important; padding: 0 !important;}
+/* END OF MOBILE GLOBAL STYLES - DO NOT CHANGE */
+}</style>
+  </head>
+  <body>
+   <div id="page-container">
+    <div id="form-container">
+  <div id="page-form-top"><div id="page-form-top-inner">Email Preferences</div></div>
+   <form name="pageform" id="page-form" method="post" action="https://pub.s10.exacttarget.com/qz1srbrr24j">
+     %%=v(@message)=%%
+    <input type="hidden" name="submitted" id="fName" value="Yes">
+    <input type="text" name="email" id="Email" placeholder="Email Name" value="%%=v(@email)=%%" readonly><br><br>
+%%[
+ var @preferences, @preference_name, @header, @i, @rows, @row, @checked
+
+ /* The @preferences variable pulls in the value of the user's "Preferences" field in the master preference center data extension, if available. The @userlookupcount looks on the master preference center data extension to see if the record exists and sets the @existinguser variable accordingly. */
+
+ set @preferences = Lookup("Master_PreferenceCenter_CustomerPreferences","Preferences","Email_Address",@email)
+ set @userlookupcount = LookupRows("Master_PreferenceCenter_CustomerPreferences","Email_Address",@email)
+
+ if @userlookupcount > 0 then
+   set @existinguser = "Y"
+ else
+   set @existinguser = "N"
+ else endif
+
+ /* This sets up the loop to bring in all preferences listed in the preferences reference data extension. The @header field defines what the text above the preferences checkbox will be. Set this to whatever you'd like. */
+
+ set @rows = LookupOrderedRows("Master_PreferenceCenter_PreferencesList",0, "Priority asc, Preference_Name","Key","X")
+ set @header = "<b>Send me emails about:</b><br><br>"
+
+ for @i = 1 TO RowCount(@rows) DO
+
+   /* If this is the first row pulled, place the @header variable above the checkboxes */
+
+   if @i == 1 then
+     output(v(@header))
+   else endif
+
+   /* Pulls in the preference_name field and applies it to the @preference_name variable */
+
+   set @row = Row(@rows,@i)
+   set @preference_name = Field(@row, "Preference_Name")
+
+
+   /* Sets the checkbox as "checked" on the page if the user has previously opted-in to the preference or if the user has not yet defined their preferences */
+
+   if IndexOf(@preferences,@preference_name) > 0 OR @existinguser == "N" then
+     set @checked = "checked"
+   else
+     set @checked = ""
+   endif
+
+   /* Sets the checkbox input field that will be displayed. All of the checkboxes will have the same name and will be submitted as one comma-delimited value */
+
+   output(concat("<input type='checkbox' name='preference' ",@checked," value='",@preference_name,"'>",@preference_name,"<br>"))
+
+ next @i ]%%
+    <input type="submit" value="Submit" id="submit" name="submit"> <br>
+   </form>
+        <form name="unsub-form" id="unsub-form" action="https://pub.s10.exacttarget.com/qz1srbrr24j" method="post">
+       <input type="hidden" name="unsubscribe" value="Yes">
+       <input type="hidden" name="jobid" value="%%=v(@jobid)=%%">
+       <input type="hidden" name="email" value="%%=v(@email)=%%">
+     <button type="submit" style="background-color: transparent;border:none;color: blue; text-decoration:underline;">
+       Unsubscribe from all emails
+       </button>
+     </form>
+
+<!-- Template by Matt Brocious -->
+
+ </div>
+ </div>
+  </body>
+</html>
